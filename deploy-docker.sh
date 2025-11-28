@@ -116,6 +116,33 @@ docker-compose up -d
 echo -e "${GREEN}✓ 服务启动完成${NC}"
 echo ""
 
+echo -e "${GREEN}[7/7] 等待服务就绪并初始化数据库...${NC}"
+echo -e "${YELLOW}等待服务启动（30秒）...${NC}"
+sleep 30
+
+# 检查后端服务是否就绪
+MAX_RETRIES=10
+RETRY_COUNT=0
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if docker-compose exec -T backend curl -f http://localhost:8000/health > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ 后端服务已就绪${NC}"
+        break
+    fi
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    echo -e "${YELLOW}等待后端服务启动... ($RETRY_COUNT/$MAX_RETRIES)${NC}"
+    sleep 5
+done
+
+# 初始化数据库
+echo -e "${YELLOW}初始化数据库...${NC}"
+if docker-compose exec -T backend alembic upgrade head 2>/dev/null; then
+    echo -e "${GREEN}✓ 数据库初始化完成${NC}"
+else
+    echo -e "${YELLOW}⚠ 数据库初始化失败，可能需要手动执行：${NC}"
+    echo "  docker-compose exec backend alembic upgrade head"
+fi
+echo ""
+
 echo "=========================================="
 echo -e "${GREEN}部署完成！${NC}"
 echo "=========================================="
@@ -135,5 +162,8 @@ echo ""
 echo "访问地址:"
 echo "  http://$(hostname -I | awk '{print $1}')"
 echo "  http://localhost"
+echo ""
+echo "如果数据库未自动初始化，请手动执行:"
+echo "  docker-compose exec backend alembic upgrade head"
 echo ""
 
