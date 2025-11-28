@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>XYZRank - 播客排名系统</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -28,7 +29,7 @@
             background: white;
             border-radius: 12px;
             padding: 30px;
-            margin-bottom: 20px;
+            margin-bottom: 30px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
         
@@ -45,7 +46,7 @@
             background: white;
             border-radius: 12px;
             padding: 20px;
-            margin-bottom: 20px;
+            margin-bottom: 30px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
         
@@ -77,32 +78,6 @@
         
         .submit-btn:hover {
             background: #059669 !important;
-        }
-        
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .stat-card {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        
-        .stat-card h3 {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 10px;
-        }
-        
-        .stat-card .value {
-            color: #333;
-            font-size: 28px;
-            font-weight: bold;
         }
         
         .podcast-list {
@@ -322,7 +297,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 30px;
         }
         
         .modal-header h2 {
@@ -380,10 +355,6 @@
             .podcast-item {
                 grid-template-columns: 1fr;
             }
-            
-            .stats {
-                grid-template-columns: 1fr;
-            }
         }
     </style>
 </head>
@@ -399,28 +370,8 @@
             <select id="category-select">
                 <option value="">全部分类</option>
             </select>
-            <select id="sort-select">
-                <option value="subscribers">按订阅数排序</option>
-                <option value="created">按创建时间排序</option>
-            </select>
-            <input type="number" id="limit-input" value="50" min="1" max="500" placeholder="显示数量">
             <button onclick="loadPodcasts()">刷新数据</button>
             <button class="submit-btn" onclick="openSubmitModal()">提交链接</button>
-        </div>
-        
-        <div class="stats">
-            <div class="stat-card">
-                <h3>播客数</h3>
-                <div class="value" id="total-count">-</div>
-            </div>
-            <div class="stat-card">
-                <h3>当前显示</h3>
-                <div class="value" id="current-count">-</div>
-            </div>
-            <div class="stat-card">
-                <h3>分类筛选</h3>
-                <div class="value" id="category-filter">全部</div>
-            </div>
         </div>
         
         <!-- 提交链接模态框 -->
@@ -448,6 +399,11 @@
             <div id="podcast-container">
                 <div class="loading">加载中...</div>
             </div>
+            <div class="pagination" id="pagination" style="display: none;">
+                <button id="prev-btn" onclick="changePage(-1)">上一页</button>
+                <span class="page-info" id="page-info">第 1 页，共 1 页</span>
+                <button id="next-btn" onclick="changePage(1)">下一页</button>
+            </div>
         </div>
     </div>
     
@@ -458,6 +414,8 @@
             : window.location.origin;
         
         let allPodcasts = [];
+        let currentPage = 1;
+        const itemsPerPage = 50; // 每页显示50条
         
         async function loadCategories() {
             try {
@@ -476,17 +434,16 @@
             }
         }
         
-        async function loadPodcasts() {
+        async function loadPodcasts(page = 1) {
             const container = document.getElementById('podcast-container');
             container.innerHTML = '<div class="loading">加载中...</div>';
             
+            currentPage = page;
             const category = document.getElementById('category-select').value;
             const search = document.getElementById('search-input').value.trim();
-            const sortBy = document.getElementById('sort-select').value;
-            const limit = parseInt(document.getElementById('limit-input').value) || 50;
             
             try {
-                let url = `${API_BASE}/api/podcasts/?limit=1000&sort_by=${sortBy}`;
+                let url = `${API_BASE}/api/podcasts/?limit=1000&sort_by=subscribers`;
                 if (category) {
                     url += `&category=${encodeURIComponent(category)}`;
                 }
@@ -500,13 +457,14 @@
                 let podcasts = await response.json();
                 allPodcasts = podcasts;
                 
-                // 应用前端限制
-                podcasts = podcasts.slice(0, limit);
+                // 计算分页
+                const totalPages = Math.ceil(podcasts.length / itemsPerPage);
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const endIndex = startIndex + itemsPerPage;
+                podcasts = podcasts.slice(startIndex, endIndex);
                 
-                // 更新统计信息
-                document.getElementById('total-count').textContent = allPodcasts.length;
-                document.getElementById('current-count').textContent = podcasts.length;
-                document.getElementById('category-filter').textContent = category || '全部';
+                // 更新分页信息
+                updatePagination(totalPages);
                 
                 if (podcasts.length === 0) {
                     container.innerHTML = '<div class="loading">没有找到播客</div>';
@@ -514,7 +472,8 @@
                 }
                 
                 container.innerHTML = podcasts.map((podcast, index) => {
-                    const rank = podcast.rank || (index + 1);
+                    // 使用数据库中的真实全站排名，不使用索引作为后备
+                    const globalRank = podcast.rank; // 直接使用数据库字段
                     const subscriberCount = podcast.subscriber_count;
                     const countDisplay = subscriberCount 
                         ? `<div class="subscriber-count">👥 ${subscriberCount.toLocaleString()} 订阅者</div>`
@@ -551,10 +510,14 @@
                         </div>`);
                     }
                     
-                    // 全局排名显示
-                    const globalRank = podcast.rank || rank;
+                    // 全局排名显示（只使用数据库中的真实排名）
                     const rankDisplay = globalRank 
                         ? `<div class="rank-info">全站排名 #${globalRank}</div>`
+                        : '';
+                    
+                    // 排名徽章（只显示数据库中的真实排名）
+                    const rankBadge = globalRank 
+                        ? `<span class="rank-badge">#${globalRank}</span>`
                         : '';
                     
                     return `
@@ -562,7 +525,7 @@
                             <div class="podcast-info">
                                 ${rankDisplay}
                                 <h3>
-                                    <span class="rank-badge">#${globalRank || rank}</span>
+                                    ${rankBadge}
                                     ${podcast.name}
                                 </h3>
                                 ${countDisplay}
@@ -601,35 +564,10 @@
                 return '<div class="no-trend">暂无趋势数据</div>';
             }
             
-            const trend = podcast.trend;
-            const first = trend[0].subscriber_count;
-            const last = trend[trend.length - 1].subscriber_count;
-            const totalGrowth = last - first;
-            const growthRate = first > 0 ? ((totalGrowth / first) * 100).toFixed(1) : 0;
-            
-            // 最近增长（最后两个数据点）
-            let recentGrowth = 0;
-            if (trend.length >= 2) {
-                recentGrowth = trend[trend.length - 1].subscriber_count - trend[trend.length - 2].subscriber_count;
-            }
-            
+            // 只返回图表容器，不包含统计数据
             return `
                 <div class="trend-mini">
                     <canvas id="canvas-${podcast.id}"></canvas>
-                </div>
-                <div class="trend-stats">
-                    <div class="trend-stat">
-                        <span class="label">总增长</span>
-                        <span class="value ${totalGrowth >= 0 ? 'positive' : 'negative'}">${totalGrowth >= 0 ? '+' : ''}${totalGrowth.toLocaleString()}</span>
-                    </div>
-                    <div class="trend-stat">
-                        <span class="label">增长率</span>
-                        <span class="value ${growthRate >= 0 ? 'positive' : 'negative'}">${growthRate >= 0 ? '+' : ''}${growthRate}%</span>
-                    </div>
-                    <div class="trend-stat">
-                        <span class="label">最近增长</span>
-                        <span class="value ${recentGrowth >= 0 ? 'positive' : 'negative'}">${recentGrowth >= 0 ? '+' : ''}${recentGrowth.toLocaleString()}</span>
-                    </div>
                 </div>
             `;
         }
@@ -642,21 +580,21 @@
             if (!canvas) return;
             
             const ctx = canvas.getContext('2d');
-            const labels = trendData.map(d => {
-                const date = new Date(d.date);
-                return `${date.getMonth() + 1}/${date.getDate()}`;
-            });
-            const data = trendData.map(d => d.subscriber_count);
+            
+            // 将数据转换为 {x: date, y: value} 格式，使用时间轴
+            const data = trendData.map(d => ({
+                x: new Date(d.date),
+                y: d.subscriber_count
+            }));
             
             // 判断趋势
-            const first = data[0];
-            const last = data[data.length - 1];
+            const first = trendData[0].subscriber_count;
+            const last = trendData[trendData.length - 1].subscriber_count;
             const isPositive = last >= first;
             
             new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels,
                     datasets: [{
                         label: '订阅者',
                         data: data,
@@ -678,9 +616,13 @@
                         },
                         tooltip: {
                             callbacks: {
+                                title: function(context) {
+                                    const date = context[0].parsed.x;
+                                    const d = new Date(date);
+                                    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                },
                                 label: function(context) {
-                                    const date = new Date(trendData[context.dataIndex].date);
-                                    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}: ${context.parsed.y.toLocaleString()}`;
+                                    return '订阅者: ' + context.parsed.y.toLocaleString();
                                 }
                             }
                         }
@@ -700,9 +642,22 @@
                             }
                         },
                         x: {
+                            type: 'time',
+                            time: {
+                                parser: 'yyyy-MM-dd',
+                                unit: 'day',
+                                displayFormats: {
+                                    day: 'MM/dd',
+                                    month: 'yyyy-MM',
+                                    year: 'yyyy'
+                                },
+                                tooltipFormat: 'yyyy-MM-dd'
+                            },
                             ticks: {
                                 maxRotation: 45,
-                                minRotation: 45
+                                minRotation: 45,
+                                source: 'data',
+                                autoSkip: true
                             }
                         }
                     }
@@ -764,13 +719,42 @@
         // 事件监听
         document.getElementById('search-input').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
-                loadPodcasts();
+                currentPage = 1;
+                loadPodcasts(1);
             }
         });
         
-        document.getElementById('category-select').addEventListener('change', loadPodcasts);
-        document.getElementById('sort-select').addEventListener('change', loadPodcasts);
-        document.getElementById('limit-input').addEventListener('change', loadPodcasts);
+        document.getElementById('category-select').addEventListener('change', () => {
+            currentPage = 1;
+            loadPodcasts(1);
+        });
+        
+        function changePage(delta) {
+            const totalPages = Math.ceil(allPodcasts.length / itemsPerPage);
+            const newPage = currentPage + delta;
+            if (newPage >= 1 && newPage <= totalPages) {
+                loadPodcasts(newPage);
+                // 滚动到顶部
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+        
+        function updatePagination(totalPages) {
+            const pagination = document.getElementById('pagination');
+            const pageInfo = document.getElementById('page-info');
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+            
+            if (totalPages <= 1) {
+                pagination.style.display = 'none';
+                return;
+            }
+            
+            pagination.style.display = 'flex';
+            pageInfo.textContent = `第 ${currentPage} 页，共 ${totalPages} 页`;
+            prevBtn.disabled = currentPage === 1;
+            nextBtn.disabled = currentPage === totalPages;
+        }
         
         // 点击模态框外部关闭
         document.getElementById('submit-modal').addEventListener('click', function(e) {
@@ -781,7 +765,7 @@
         
         // 初始化
         loadCategories();
-        loadPodcasts();
+        loadPodcasts(1);
     </script>
 </body>
 </html>
