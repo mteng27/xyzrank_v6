@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>XYZRank - 播客排名系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #666;
+        }
+        
+        .controls {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .controls input, .controls select {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .controls button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .controls button:hover {
+            background: #5568d3;
+        }
+        
+        .submit-btn {
+            background: #10b981 !important;
+        }
+        
+        .submit-btn:hover {
+            background: #059669 !important;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-card h3 {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .value {
+            color: #333;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        
+        .podcast-list {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .podcast-item {
+            border-bottom: 1px solid #eee;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 35% 65%;
+            gap: 20px;
+            transition: background 0.2s;
+            align-items: center;
+        }
+        
+        .podcast-item:hover {
+            background: #f9f9f9;
+        }
+        
+        .podcast-item:last-child {
+            border-bottom: none;
+        }
+        
+        .podcast-info {
+            min-width: 0;
+            overflow: hidden;
+        }
+        
+        .podcast-info h3 {
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 18px;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+        
+        .podcast-info .meta {
+            color: #666;
+            font-size: 13px;
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .podcast-info .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .podcast-info .meta-item .label {
+            color: #999;
+            font-size: 12px;
+        }
+        
+        .podcast-info .meta-item .value {
+            color: #667eea;
+            font-weight: 500;
+        }
+        
+        .podcast-info .links {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .podcast-info .link-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 12px;
+            background: #f0f0f0;
+            color: #333;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        .podcast-info .link-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .podcast-info .link-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+        
+        .podcast-info .rank-info {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .podcast-info .subscriber-count {
+            color: #667eea;
+            font-weight: bold;
+            font-size: 18px;
+            margin: 10px 0;
+        }
+        
+        .podcast-info .description {
+            color: #666;
+            font-size: 12px;
+            margin-top: 8px;
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .podcast-trend {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .trend-mini {
+            width: 100%;
+            height: 150px;
+            position: relative;
+        }
+        
+        .trend-stats {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        
+        .trend-stat {
+            text-align: center;
+        }
+        
+        .trend-stat .label {
+            color: #999;
+            display: block;
+            margin-bottom: 4px;
+        }
+        
+        .trend-stat .value {
+            color: #333;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .trend-stat .value.positive {
+            color: #10b981;
+        }
+        
+        .trend-stat .value.negative {
+            color: #e74c3c;
+        }
+        
+        .no-trend {
+            color: #999;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .loading, .error {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        
+        .error {
+            color: #e74c3c;
+        }
+        
+        /* 模态框 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-header h2 {
+            font-size: 20px;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+        
+        .modal-body input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+        
+        .modal-body .hint {
+            color: #666;
+            font-size: 12px;
+            margin-bottom: 15px;
+        }
+        
+        .modal-body .buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            .podcast-item {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎙️ XYZRank</h1>
+            <p>小宇宙播客数据追踪与分析平台</p>
+        </div>
+        
+        <div class="controls">
+            <input type="text" id="search-input" placeholder="搜索播客名称（如：基本无害）...">
+            <select id="category-select">
+                <option value="">全部分类</option>
+            </select>
+            <select id="sort-select">
+                <option value="subscribers">按订阅数排序</option>
+                <option value="created">按创建时间排序</option>
+            </select>
+            <input type="number" id="limit-input" value="50" min="1" max="500" placeholder="显示数量">
+            <button onclick="loadPodcasts()">刷新数据</button>
+            <button class="submit-btn" onclick="openSubmitModal()">提交链接</button>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <h3>播客数</h3>
+                <div class="value" id="total-count">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>当前显示</h3>
+                <div class="value" id="current-count">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>分类筛选</h3>
+                <div class="value" id="category-filter">全部</div>
+            </div>
+        </div>
+        
+        <!-- 提交链接模态框 -->
+        <div id="submit-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>提交播客链接</h2>
+                    <button class="modal-close" onclick="closeSubmitModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="text" id="submit-url-input" placeholder="请输入小宇宙播客链接，例如：https://www.xiaoyuzhoufm.com/podcast/xxx">
+                    <div class="hint">
+                        💡 提示：如果播客已存在，将直接显示；如果不存在，将添加到数据库中，后续会自动抓取数据。
+                    </div>
+                    <div class="buttons">
+                        <button class="btn-secondary" onclick="closeSubmitModal()">取消</button>
+                        <button class="btn-primary" onclick="submitPodcast()">提交</button>
+                    </div>
+                    <div id="submit-message" style="margin-top: 15px; font-size: 14px;"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="podcast-list">
+            <div id="podcast-container">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 动态设置 API 基础地址
+        const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+            ? 'http://localhost:8000'
+            : window.location.origin;
+        
+        let allPodcasts = [];
+        
+        async function loadCategories() {
+            try {
+                const response = await fetch(`${API_BASE}/api/podcasts/?limit=1000`);
+                const data = await response.json();
+                const categories = [...new Set(data.map(p => p.category).filter(Boolean))].sort();
+                const select = document.getElementById('category-select');
+                categories.forEach(cat => {
+                    const option = document.createElement('option');
+                    option.value = cat;
+                    option.textContent = cat;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('加载分类失败:', error);
+            }
+        }
+        
+        async function loadPodcasts() {
+            const container = document.getElementById('podcast-container');
+            container.innerHTML = '<div class="loading">加载中...</div>';
+            
+            const category = document.getElementById('category-select').value;
+            const search = document.getElementById('search-input').value.trim();
+            const sortBy = document.getElementById('sort-select').value;
+            const limit = parseInt(document.getElementById('limit-input').value) || 50;
+            
+            try {
+                let url = `${API_BASE}/api/podcasts/?limit=1000&sort_by=${sortBy}`;
+                if (category) {
+                    url += `&category=${encodeURIComponent(category)}`;
+                }
+                if (search) {
+                    url += `&search=${encodeURIComponent(search)}`;
+                }
+                
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                let podcasts = await response.json();
+                allPodcasts = podcasts;
+                
+                // 应用前端限制
+                podcasts = podcasts.slice(0, limit);
+                
+                // 更新统计信息
+                document.getElementById('total-count').textContent = allPodcasts.length;
+                document.getElementById('current-count').textContent = podcasts.length;
+                document.getElementById('category-filter').textContent = category || '全部';
+                
+                if (podcasts.length === 0) {
+                    container.innerHTML = '<div class="loading">没有找到播客</div>';
+                    return;
+                }
+                
+                container.innerHTML = podcasts.map((podcast, index) => {
+                    const rank = podcast.rank || (index + 1);
+                    const subscriberCount = podcast.subscriber_count;
+                    const countDisplay = subscriberCount 
+                        ? `<div class="subscriber-count">👥 ${subscriberCount.toLocaleString()} 订阅者</div>`
+                        : '<div class="subscriber-count" style="color: #999;">暂无订阅数据</div>';
+                    
+                    const description = podcast.description 
+                        ? `<div class="description">${podcast.description}</div>`
+                        : '';
+                    
+                    // 构建跳转链接
+                    const xyzUrl = `https://www.xiaoyuzhoufm.com/podcast/${podcast.xyz_id}`;
+                    const links = [];
+                    links.push(`<a href="${xyzUrl}" target="_blank" class="link-btn" title="在小宇宙中打开">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                        小宇宙
+                    </a>`);
+                    
+                    if (podcast.rss_url) {
+                        links.push(`<a href="${podcast.rss_url}" target="_blank" class="link-btn" title="RSS订阅">
+                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.503 20.752c0 1.794-1.456 3.248-3.251 3.248-1.796 0-3.252-1.454-3.252-3.248 0-1.794 1.456-3.248 3.252-3.248 1.795.001 3.251 1.454 3.251 3.248zm-6.503-12.572v4.811c6.05.062 10.96 4.966 11.022 11.009h4.817c-.062-8.71-7.118-15.758-15.839-15.82zm0-3.368c10.58.046 19.152 8.594 19.183 19.188h4.817c-.03-13.231-10.755-23.954-24-24v4.812z"/></svg>
+                            RSS
+                        </a>`);
+                    }
+                    
+                    // 构建元信息
+                    const metaItems = [];
+                    if (podcast.category) {
+                        const categoryRankDisplay = podcast.category_rank 
+                            ? `<span class="category-rank">分类排名 #${podcast.category_rank}</span>`
+                            : '';
+                        metaItems.push(`<div class="meta-item">
+                            <span class="label">分类:</span>
+                            <span class="value">${podcast.category} ${categoryRankDisplay}</span>
+                        </div>`);
+                    }
+                    
+                    // 全局排名显示
+                    const globalRank = podcast.rank || rank;
+                    const rankDisplay = globalRank 
+                        ? `<div class="rank-info">全站排名 #${globalRank}</div>`
+                        : '';
+                    
+                    return `
+                        <div class="podcast-item" data-podcast-id="${podcast.id}">
+                            <div class="podcast-info">
+                                ${rankDisplay}
+                                <h3>
+                                    <span class="rank-badge">#${globalRank || rank}</span>
+                                    ${podcast.name}
+                                </h3>
+                                ${countDisplay}
+                                <div class="meta">
+                                    ${metaItems.join('')}
+                                </div>
+                                ${description}
+                                <div class="links">
+                                    ${links.join('')}
+                                </div>
+                            </div>
+                            <div class="podcast-trend" id="trend-${podcast.id}">
+                                ${renderTrendMini(podcast)}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+                // 为每个播客绘制趋势图
+                podcasts.forEach(podcast => {
+                    if (podcast.trend && podcast.trend.length > 0) {
+                        setTimeout(() => {
+                            drawTrendMini(`trend-${podcast.id}`, podcast.trend);
+                        }, 100);
+                    }
+                });
+                
+            } catch (error) {
+                container.innerHTML = `<div class="error">加载失败: ${error.message}</div>`;
+                console.error('加载播客失败:', error);
+            }
+        }
+        
+        function renderTrendMini(podcast) {
+            if (!podcast.trend || podcast.trend.length === 0) {
+                return '<div class="no-trend">暂无趋势数据</div>';
+            }
+            
+            const trend = podcast.trend;
+            const first = trend[0].subscriber_count;
+            const last = trend[trend.length - 1].subscriber_count;
+            const totalGrowth = last - first;
+            const growthRate = first > 0 ? ((totalGrowth / first) * 100).toFixed(1) : 0;
+            
+            // 最近增长（最后两个数据点）
+            let recentGrowth = 0;
+            if (trend.length >= 2) {
+                recentGrowth = trend[trend.length - 1].subscriber_count - trend[trend.length - 2].subscriber_count;
+            }
+            
+            return `
+                <div class="trend-mini">
+                    <canvas id="canvas-${podcast.id}"></canvas>
+                </div>
+                <div class="trend-stats">
+                    <div class="trend-stat">
+                        <span class="label">总增长</span>
+                        <span class="value ${totalGrowth >= 0 ? 'positive' : 'negative'}">${totalGrowth >= 0 ? '+' : ''}${totalGrowth.toLocaleString()}</span>
+                    </div>
+                    <div class="trend-stat">
+                        <span class="label">增长率</span>
+                        <span class="value ${growthRate >= 0 ? 'positive' : 'negative'}">${growthRate >= 0 ? '+' : ''}${growthRate}%</span>
+                    </div>
+                    <div class="trend-stat">
+                        <span class="label">最近增长</span>
+                        <span class="value ${recentGrowth >= 0 ? 'positive' : 'negative'}">${recentGrowth >= 0 ? '+' : ''}${recentGrowth.toLocaleString()}</span>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function drawTrendMini(containerId, trendData) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            
+            const canvas = container.querySelector('canvas');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            const labels = trendData.map(d => {
+                const date = new Date(d.date);
+                return `${date.getMonth() + 1}/${date.getDate()}`;
+            });
+            const data = trendData.map(d => d.subscriber_count);
+            
+            // 判断趋势
+            const first = data[0];
+            const last = data[data.length - 1];
+            const isPositive = last >= first;
+            
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '订阅者',
+                        data: data,
+                        borderColor: isPositive ? '#10b981' : '#e74c3c',
+                        backgroundColor: isPositive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(231, 76, 60, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 2,
+                        pointHoverRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const date = new Date(trendData[context.dataIndex].date);
+                                    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}: ${context.parsed.y.toLocaleString()}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function(value) {
+                                    if (value >= 1000000) {
+                                        return (value / 1000000).toFixed(1) + 'M';
+                                    } else if (value >= 1000) {
+                                        return (value / 1000).toFixed(0) + 'K';
+                                    }
+                                    return value;
+                                }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 提交播客
+        function openSubmitModal() {
+            document.getElementById('submit-modal').classList.add('active');
+            document.getElementById('submit-url-input').value = '';
+            document.getElementById('submit-message').textContent = '';
+        }
+        
+        function closeSubmitModal() {
+            document.getElementById('submit-modal').classList.remove('active');
+        }
+        
+        async function submitPodcast() {
+            const urlInput = document.getElementById('submit-url-input');
+            const messageDiv = document.getElementById('submit-message');
+            const url = urlInput.value.trim();
+            
+            if (!url) {
+                messageDiv.textContent = '请输入播客链接';
+                messageDiv.style.color = 'red';
+                return;
+            }
+            
+            messageDiv.textContent = '提交中...';
+            messageDiv.style.color = 'blue';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/podcasts/submit`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ url: url })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    messageDiv.textContent = '提交成功！';
+                    messageDiv.style.color = 'green';
+                    setTimeout(() => {
+                        closeSubmitModal();
+                        loadPodcasts();
+                    }, 1000);
+                } else {
+                    messageDiv.textContent = `提交失败: ${data.detail || '未知错误'}`;
+                    messageDiv.style.color = 'red';
+                }
+            } catch (error) {
+                messageDiv.textContent = `提交失败: ${error.message}`;
+                messageDiv.style.color = 'red';
+            }
+        }
+        
+        // 事件监听
+        document.getElementById('search-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                loadPodcasts();
+            }
+        });
+        
+        document.getElementById('category-select').addEventListener('change', loadPodcasts);
+        document.getElementById('sort-select').addEventListener('change', loadPodcasts);
+        document.getElementById('limit-input').addEventListener('change', loadPodcasts);
+        
+        // 点击模态框外部关闭
+        document.getElementById('submit-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeSubmitModal();
+            }
+        });
+        
+        // 初始化
+        loadCategories();
+        loadPodcasts();
+    </script>
+</body>
+</html>
+

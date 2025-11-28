@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# 数据库
+*.db
+*.sqlite
+*.sqlite3
+
+# 环境变量
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 日志
+*.log
+logs/
+
+# 临时文件
+*.tmp
+*.bak
+*.backup
+.DS_Store
+
+# 测试结果
+*.json
+test_results/
+scraper_test_results.json
+subscriber_scraping_test_results.json
+
+# 数据文件（大文件）
+*.csv
+*.xlsx
+*.xls
+
+# 备份
+backup/
+*.db.backup
+
+# 迁移文件（保留结构，忽略内容）
+# migrations/versions/*.py
+
+# Playwright
+.playwright/
+
+# 系统文件
+Thumbs.db
+
