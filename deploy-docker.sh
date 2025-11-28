@@ -37,21 +37,37 @@ if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/
     echo -e "${GREEN}✓ Docker Compose 安装完成${NC}"
 fi
 
-# 项目目录
-PROJECT_DIR="/opt/xyzrank"
-cd "$PROJECT_DIR" 2>/dev/null || {
-    echo -e "${YELLOW}项目目录不存在，创建中...${NC}"
-    mkdir -p "$PROJECT_DIR"
+# 项目目录 - 自动检测当前目录或使用默认路径
+if [ -f "docker-compose.yml" ]; then
+    # 如果当前目录有 docker-compose.yml，使用当前目录
+    PROJECT_DIR=$(pwd)
+    echo -e "${GREEN}使用当前目录: $PROJECT_DIR${NC}"
+elif [ -f "/opt/xyzrank_v6/docker-compose.yml" ]; then
+    # 如果默认路径存在，使用默认路径
+    PROJECT_DIR="/opt/xyzrank_v6"
     cd "$PROJECT_DIR"
-}
+    echo -e "${GREEN}使用默认目录: $PROJECT_DIR${NC}"
+else
+    # 否则使用当前目录
+    PROJECT_DIR=$(pwd)
+    echo -e "${YELLOW}使用当前目录: $PROJECT_DIR${NC}"
+    echo -e "${YELLOW}请确保在项目根目录运行此脚本${NC}"
+fi
 
 echo -e "${GREEN}[1/6] 检查项目文件...${NC}"
+cd "$PROJECT_DIR"
 if [ ! -f "docker-compose.yml" ]; then
     echo -e "${RED}错误: 未找到 docker-compose.yml 文件${NC}"
+    echo "当前目录: $(pwd)"
     echo "请确保在项目根目录运行此脚本"
+    echo ""
+    echo "正确的运行方式:"
+    echo "  cd /opt/xyzrank_v6"
+    echo "  ./deploy-docker.sh"
     exit 1
 fi
 echo -e "${GREEN}✓ 项目文件检查完成${NC}"
+echo -e "${GREEN}项目目录: $PROJECT_DIR${NC}"
 echo ""
 
 echo -e "${GREEN}[2/6] 配置环境变量...${NC}"
