@@ -1,155 +1,169 @@
 # 部署检查清单
 
-## 📋 部署前准备
+## ✅ 部署前检查
 
-### 本地准备
-- [ ] 确认项目代码已提交到 Git（或准备好上传）
-- [ ] 确认数据库文件已备份（如果有）
-- [ ] 确认 `.env` 配置已准备好
-- [ ] 确认所有依赖已记录在 `requirements.txt`
+### 服务器环境
+- [ ] 操作系统：OpenCloudOS 8 / CentOS 8+ / Ubuntu 20.04+
+- [ ] Docker 已安装：`docker --version`
+- [ ] Docker Compose 已安装：`docker-compose --version` 或 `docker compose version`
+- [ ] 有 root 权限或 sudo 权限
+- [ ] 端口 80、443、8000 未被占用
 
-### 服务器准备
-- [ ] 已获取服务器 IP 地址和 root 密码
-- [ ] 已配置 SSH 密钥（推荐）或准备好密码
-- [ ] 确认服务器系统版本（Ubuntu 20.04+ 或 CentOS 7+）
-- [ ] 确认服务器有足够资源（2核2GB+）
+### 项目文件
+- [ ] 项目已下载到服务器（`/opt/xyzrank_v6`）
+- [ ] `docker-compose.yml` 文件存在
+- [ ] `Dockerfile` 文件存在
+- [ ] `backend/` 目录存在
+- [ ] `frontend/` 目录存在
+- [ ] `nginx/` 目录存在
+
+---
 
 ## 🚀 部署步骤
 
-### 1. 连接服务器
+### 1. 准备环境
+
 ```bash
-ssh root@your-server-ip
+# 安装 Git（如果未安装）
+yum install -y git
+
+# 或使用 wget 下载
+yum install -y wget unzip
+wget https://github.com/mteng27/xyzrank_v6/archive/refs/heads/main.zip
+unzip main.zip
+mv xyzrank_v6-main xyzrank_v6
 ```
 
-### 2. 上传项目文件
+### 2. 运行部署脚本
 
-**推荐方式：rsync（支持增量同步）**
 ```bash
-# 在本地执行
-rsync -avz --exclude '*.pyc' --exclude '__pycache__' --exclude '*.db' \
-  --exclude 'venv' --exclude '.git' \
-  /Users/mateng/xyzrank_v6/ root@your-server-ip:/opt/xyzrank/
+cd /opt/xyzrank_v6
+chmod +x deploy-docker.sh
+./deploy-docker.sh
 ```
 
-### 3. 运行部署脚本
+### 3. 验证部署
+
 ```bash
-# 在服务器上执行
-cd /opt/xyzrank
-chmod +x deploy.sh
-./deploy.sh
+# 检查服务状态
+docker-compose -f docker-compose.cn.yml ps
+
+# 检查健康状态
+curl http://localhost/health
+
+# 检查 API
+curl http://localhost/api/podcasts/
 ```
 
-### 4. 配置检查
-- [ ] 后端服务运行正常：`systemctl status xyzrank-backend`
-- [ ] Nginx 运行正常：`systemctl status nginx`
-- [ ] API 可访问：`curl http://localhost:8000/health`
-- [ ] 前端可访问：浏览器打开 `http://your-server-ip`
+---
 
-### 5. 数据导入（如果需要）
-```bash
-cd /opt/xyzrank/backend
-source venv/bin/activate
+## 🔍 部署后检查
 
-# 如果有 CSV 数据需要导入
-python import_data_simple.py
-```
-
-### 6. 配置定时任务
-- [ ] 确认定时任务已启动：`journalctl -u xyzrank-backend | grep "定时任务"`
-- [ ] 确认调度器正常运行
-
-## 🔧 配置调整
-
-### 修改 API 地址（如果需要）
-如果前端和后端不在同一域名，需要修改前端：
-```javascript
-// 在 frontend/index.html 中
-const API_BASE = 'http://your-api-domain.com';
-```
-
-### 配置 CORS（如果需要）
-在 `backend/app/main.py` 中修改：
-```python
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://your-frontend-domain.com"],  # 指定前端域名
-    ...
-)
-```
-
-## ✅ 部署后验证
+### 服务状态
+- [ ] 后端服务运行正常：`docker ps | grep xyzrank-backend`
+- [ ] Nginx 服务运行正常：`docker ps | grep xyzrank-nginx`
+- [ ] 无容器重启：`docker ps` 显示 `Up` 状态
 
 ### 功能测试
-- [ ] 前端页面可以正常打开
-- [ ] 可以加载播客列表
-- [ ] 可以搜索播客
-- [ ] 可以查看播客详情
-- [ ] 趋势图正常显示
-- [ ] 排名信息正常显示
+- [ ] 前端页面可访问：浏览器打开 `http://your-ip`
+- [ ] API 健康检查通过：`curl http://localhost/health`
+- [ ] API 返回数据：`curl http://localhost/api/podcasts/`
+- [ ] 数据库文件已创建：`ls -la backend/data/xyzrank.db`
 
-### 性能测试
-- [ ] API 响应时间 < 1秒
-- [ ] 前端加载时间 < 3秒
-- [ ] 定时任务正常运行
+### 日志检查
+- [ ] 后端日志无错误：`docker-compose logs backend | grep -i error`
+- [ ] Nginx 日志正常：`docker-compose logs nginx | tail -20`
 
-## 🔄 后续维护
+---
 
-### 日常更新
+## 🐛 常见问题
+
+### 问题 1: 容器一直重启
+
+**检查日志:**
 ```bash
-# 使用更新脚本
-cd /opt/xyzrank
-./update.sh
+docker logs xyzrank-backend --tail=100
 ```
+
+**常见原因:**
+- `.env` 文件缺失 → 运行 `./fix-restart.sh`
+- 数据目录权限问题 → `chmod -R 755 backend/data`
+- 数据库迁移失败 → 手动执行 `alembic upgrade head`
+
+### 问题 2: 无法访问前端
+
+**检查:**
+```bash
+# 检查 Nginx 容器
+docker ps | grep nginx
+
+# 检查端口
+netstat -tlnp | grep 80
+
+# 检查 Nginx 日志
+docker-compose logs nginx
+```
+
+### 问题 3: API 返回 502
+
+**检查:**
+```bash
+# 检查后端服务
+docker-compose exec backend curl http://localhost:8000/health
+
+# 检查网络连接
+docker network inspect xyzrank_xyzrank-network
+```
+
+---
+
+## 📝 维护命令
 
 ### 查看日志
 ```bash
-# 后端日志
-journalctl -u xyzrank-backend -f
+# 所有服务
+docker-compose -f docker-compose.cn.yml logs -f
 
-# Nginx 日志
-tail -f /var/log/nginx/access.log
-tail -f /var/log/nginx/error.log
+# 仅后端
+docker-compose -f docker-compose.cn.yml logs -f backend
+
+# 仅 Nginx
+docker-compose -f docker-compose.cn.yml logs -f nginx
+```
+
+### 重启服务
+```bash
+# 重启所有
+docker-compose -f docker-compose.cn.yml restart
+
+# 仅重启后端
+docker-compose -f docker-compose.cn.yml restart backend
+```
+
+### 更新代码
+```bash
+cd /opt/xyzrank_v6
+git pull origin main
+docker-compose -f docker-compose.cn.yml build --no-cache
+docker-compose -f docker-compose.cn.yml up -d
 ```
 
 ### 备份数据
 ```bash
 # 备份数据库
-cp /opt/xyzrank/backend/xyzrank.db /opt/xyzrank/backup/xyzrank_$(date +%Y%m%d).db
+cp backend/data/xyzrank.db backend/data/backup_$(date +%Y%m%d_%H%M%S).db
 ```
 
-## 🆘 常见问题
+---
 
-### 问题1：服务无法启动
-```bash
-# 检查日志
-journalctl -u xyzrank-backend -n 50
+## ✅ 部署成功标志
 
-# 检查端口
-netstat -tlnp | grep 8000
+- ✅ 所有容器状态为 `Up`
+- ✅ 健康检查通过：`curl http://localhost/health` 返回 `{"status":"ok"}`
+- ✅ 前端页面正常显示
+- ✅ API 返回数据
+- ✅ 无错误日志
 
-# 检查权限
-ls -la /opt/xyzrank/backend/
-```
+---
 
-### 问题2：Nginx 502 错误
-```bash
-# 检查后端服务
-systemctl status xyzrank-backend
-curl http://127.0.0.1:8000/health
-
-# 检查 Nginx 配置
-nginx -t
-```
-
-### 问题3：前端无法连接后端
-- 检查 API_BASE 配置
-- 检查 CORS 设置
-- 检查防火墙规则
-
-## 📞 技术支持
-
-如遇到问题，请检查：
-1. 服务日志：`journalctl -u xyzrank-backend -f`
-2. Nginx 日志：`tail -f /var/log/nginx/error.log`
-3. 系统资源：`htop` 或 `free -h`
-
+**部署完成后，请按照此清单逐项检查！**
