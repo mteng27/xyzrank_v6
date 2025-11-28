@@ -4,13 +4,17 @@ FROM python:3.10-slim
 # 设置工作目录
 WORKDIR /app
 
-# 安装系统依赖
-RUN apt-get update && apt-get install -y \
+# 使用国内镜像源（可选，如果网络慢可以取消注释）
+# RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources || \
+#     sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list || true
+
+# 安装系统依赖（最小化安装）
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
-    libpq-dev \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # 复制依赖文件
 COPY backend/requirements.txt .

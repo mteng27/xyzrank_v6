@@ -107,12 +107,31 @@ fi
 echo ""
 
 echo -e "${GREEN}[5/6] 构建 Docker 镜像...${NC}"
-docker-compose build --no-cache
+echo -e "${YELLOW}提示: 如果构建很慢，可能是网络问题${NC}"
+echo -e "${YELLOW}可以使用国内镜像版本: docker-compose -f docker-compose.cn.yml build${NC}"
+echo ""
+
+# 检查是否存在国内镜像版本
+if [ -f "docker-compose.cn.yml" ]; then
+    read -p "是否使用国内镜像源加速构建？(y/n，默认n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${GREEN}使用国内镜像源构建...${NC}"
+        docker-compose -f docker-compose.cn.yml build --no-cache
+        COMPOSE_FILE="docker-compose.cn.yml"
+    else
+        docker-compose build --no-cache
+        COMPOSE_FILE="docker-compose.yml"
+    fi
+else
+    docker-compose build --no-cache
+    COMPOSE_FILE="docker-compose.yml"
+fi
 echo -e "${GREEN}✓ 镜像构建完成${NC}"
 echo ""
 
 echo -e "${GREEN}[6/6] 启动服务...${NC}"
-docker-compose up -d
+docker-compose -f ${COMPOSE_FILE:-docker-compose.yml} up -d
 echo -e "${GREEN}✓ 服务启动完成${NC}"
 echo ""
 
@@ -124,7 +143,7 @@ sleep 30
 MAX_RETRIES=10
 RETRY_COUNT=0
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if docker-compose exec -T backend curl -f http://localhost:8000/health > /dev/null 2>&1; then
+    if docker-compose -f ${COMPOSE_FILE:-docker-compose.yml} exec -T backend curl -f http://localhost:8000/health > /dev/null 2>&1; then
         echo -e "${GREEN}✓ 后端服务已就绪${NC}"
         break
     fi
@@ -135,7 +154,7 @@ done
 
 # 初始化数据库
 echo -e "${YELLOW}初始化数据库...${NC}"
-if docker-compose exec -T backend alembic upgrade head 2>/dev/null; then
+if docker-compose -f ${COMPOSE_FILE:-docker-compose.yml} exec -T backend alembic upgrade head 2>/dev/null; then
     echo -e "${GREEN}✓ 数据库初始化完成${NC}"
 else
     echo -e "${YELLOW}⚠ 数据库初始化失败，可能需要手动执行：${NC}"
@@ -148,7 +167,7 @@ echo -e "${GREEN}部署完成！${NC}"
 echo "=========================================="
 echo ""
 echo "服务状态:"
-docker-compose ps
+docker-compose -f ${COMPOSE_FILE:-docker-compose.yml} ps
 echo ""
 echo "查看日志:"
 echo "  docker-compose logs -f"
